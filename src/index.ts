@@ -5,6 +5,7 @@ import { Vector3 } from './cfx/vector'
 import { Target } from './target'
 import { Text, Font } from './cfx/text'
 
+console.log('help');
 
 const targets: Set<Target> = new Set();
 
@@ -25,11 +26,9 @@ gearDisplay.font = Font.ChaletComprimeCologne;
 
 setTick(async () => {
     const time = new Date().getTime();
-    const dt = (time - lastTime) / 1000;
+    const dt = time - lastTime;
 
     if (Game.controls.isJustPressed(Control.PhoneUp)) {
-        console.log('Urgh... ' + Game.localPlayer.name);
-
         let newTarget: Target;
 
         try {

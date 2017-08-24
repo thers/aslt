@@ -17,6 +17,10 @@ export class Color {
 
         return new Color(r, g, b, 255);
     }
+
+    public static alterAlpha(c: Color, a: number) {
+        return new Color(c.r, c.g, c.b, a);
+    }
 }
 
 export const Known = {
@@ -25,4 +29,7 @@ export const Known = {
     Red: Color.fromRgb(0xff0000),
     Green: Color.fromRgb(0x00ff00),
     Blue: Color.fromRgb(0x0000ff),
+    MarineBlue: Color.fromRgb(0x005cc5),
+    PaleRed: Color.fromRgb(0xd73a49),
+    WeirdPurple: Color.fromRgb(0x373277)
 };

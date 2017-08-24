@@ -16,7 +16,7 @@ const compiler = webpack({
     devtool: false,
     entry: './src/index.ts',
     output: {
-        filename: './dist/zombya.js'
+        filename: `./dist/${package.name}.js`
     },
     module: {
         rules: [
