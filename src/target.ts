@@ -59,7 +59,7 @@ export class Target {
 
         this.marker.direction = Vector3.Forward;
 
-        SetBlipSprite(this.blip, 61);
+        SetBlipSprite(this.blip, 63);
         SetBlipScale(this.blip, 1.1);
 
         setTimeout(() => this.state = TargetState.Idle, 1000);
@@ -117,6 +117,14 @@ export class Target {
                 this.marker.color = Known.Green;
         }
 
+        this.updateHud(dt, time);
+    }
+
+    public updateHud(dt: number, time: number) {
         this.marker.draw();
+    }
+
+    public toString(): string {
+        return `state: ${TargetState[this.state]}, timer: ${this.timeLeftHuman()}`;
     }
 }

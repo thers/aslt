@@ -26,10 +26,12 @@ export class Text {
     public constructor(
         public caption: string,
         public position: [number, number],
-        public scale: number = 1.0000001,
+        public scale: number = 1,
         public color: Color = Known.White,
         public font: Font = Font.ChaletComprimeCologne
-    ) { }
+    ) {
+        this.scale += 0.000001;
+    }
 
     public draw() {
         if (this.shadow) {
