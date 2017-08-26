@@ -106,6 +106,13 @@ export class Vector3 extends Array {
         return x * x + y * y + z * z;
     }
 
+    public distanceSquared2D(to: Vector3): number {
+        const x = this.x - to.x;
+        const y = this.y - to.y;
+
+        return x * x + y * y;
+    }
+
     public toString(): string {
         return `[x: ${this.x.toFixed(2)}, y: ${this.y.toFixed(2)}, z: ${this.z.toFixed(2)}]`;
     }

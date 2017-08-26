@@ -4,15 +4,28 @@ import { Camera } from './cfx/camera'
 import { Vector3 } from './cfx/vector'
 import { Round } from './round'
 import { Text, Font } from './cfx/text'
+import { projectToGame } from './position'
+
+enum DecorationType {
+    Float = 1,
+    Bool = 2,
+    Int = 3,
+    Time = 5
+}
 
 let round = new Round();
 
 Game.onMount(() => {
-    console.log('Inited!');
+    // Setup decorators
+    DecorRegister('rnd', <number>DecorationType.Float);
+
+    Game.localPlayer.setFloatDecor('rnd', Math.random());
+
+    console.log('Peds rnd:', DecorGetFloat(PlayerPedId(), 'rnd'));
 });
 
 Game.onUnmount(() => {
-    round.stopAndDelete();
+    round.stop();
 });
 
 let lastTime = 0;
@@ -30,4 +43,12 @@ setTick(async () => {
     lastTime = time;
 });
 
-RegisterCommand('pos', () => console.info(Game.localPlayer.position), false);
+RegisterCommand('pos', () => {
+    const pos = Game.localPlayer.position;
+    const zoneId = GetZoneAtCoords(pos.x, pos.y, pos.z);
+    const zoneName = GetNameOfZone(pos.x, pos.y, pos.z);
+
+    console.info(`Pos:`, pos);
+    console.info(`Zone id:`, zoneId);
+    console.info(`Zone name:`, zoneName);
+}, false);

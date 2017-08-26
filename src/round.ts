@@ -1,11 +1,13 @@
-import { Target } from './target'
+import { Target, TargetState } from './target'
 import { Text, Font, Alignment } from './cfx/text'
 import { Color, Known } from './cfx/color'
 import { Vector3 } from './cfx/vector'
 import { Game } from './cfx/game'
 
 export enum RoundState {
-    Waiting,
+    Idle,
+    Starting,
+    Intermission,
     Running
 }
 
@@ -14,58 +16,122 @@ statusText.outline = true;
 statusText.alignment = Alignment.Center;
 
 export class Round {
-    public targets: Set<Target> = new Set();
+    public target: Target = null;
+    public targetIndex: number = 1;
+    public maxTargets: number = 2;
+
     public teams: Set<Team> = new Set();
-    public state: RoundState = RoundState.Waiting;
+    public state: RoundState = RoundState.Idle;
+
+    public timeToStart: number = 20000;
+    public timeToNextTarget: number = 30000;
+
+    public timerToStart: number;
+    public timerToNextTarget: number;
 
     public start() {
-        this.targets = new Set();
+        this.timerToStart = this.timeToStart;
+        this.timerToNextTarget = this.timeToNextTarget;
 
-        const target1 = new Target();
-        const target2 = new Target();
+        this.target && this.target.cleanUp();
 
-        const playerPos = Game.localPlayer.position;
+        this.target = new Target();
+        this.targetIndex = 1;
 
-        target1.spawn(playerPos.add(new Vector3(15, 0, 0)));
-        target2.spawn(playerPos.add(new Vector3(-15, 0, 0)));
-
-        this.targets.add(target1);
-        this.targets.add(target2);
-
-        this.state = RoundState.Running;
+        this.state = RoundState.Starting;
     }
 
-    public stopAndDelete() {
-        for (const target of this.targets) {
-            target.delete();
-        }
+    public stop() {
+        this.target.cleanUp();
 
-        this.state = RoundState.Waiting;
+        this.state = RoundState.Idle;
     }
 
     public update(dt: number, time: number) {
-        if (this.state === RoundState.Running) {
-            const status = [];
+        switch (this.state) {
+            case RoundState.Idle:
+                return;
 
-            for (const target of this.targets) {
-                target.update(dt, time);
+            case RoundState.Starting:
+                this.timerToStart -= dt;
 
-                status.push(target.toString());
-            }
+                if (this.timerToStart <= 0) {
+                    this.state = RoundState.Running;
+                    this.target.respawn();
+                    this.timerToStart = 0;
+                }
+                break;
 
-            statusText.caption = status.join(', ');
-        } else {
-            statusText.caption = 'Round is about to get started...';
+            case RoundState.Intermission:
+                this.updateIntermission(dt);
+                break;
+            
+            case RoundState.Running:
+                this.updateRunning(dt, time);
+                break;
         }
 
         this.updateUi();
     }
 
+    private updateIntermission(dt: number) {
+        this.timerToNextTarget -= dt;
+
+        if (this.timerToNextTarget <= 0) {
+            this.target.respawn();
+            this.state = RoundState.Running;
+
+            this.timerToNextTarget = this.timeToNextTarget;
+        }
+    }
+
+    private updateRunning(dt: number, time: number) {
+        this.target.update(dt);
+
+        if (this.target.state === TargetState.Captured) {
+            this.targetIndex++;
+
+            if (this.targetIndex <= this.maxTargets) {
+                this.state = RoundState.Intermission;
+            } else {
+                this.stop();
+            }
+        }
+    }
+
     public updateUi() {
+        switch (this.state) {
+            case RoundState.Starting:
+                statusText.caption = `Time to start: ${humanize(this.timerToStart)}`;
+                break;
+
+            case RoundState.Intermission:
+                statusText.caption = `Intermission: ${humanize(this.timerToNextTarget)}`;
+                break;
+
+            case RoundState.Running:
+                statusText.caption = `Target: ${this.targetIndex}, `;
+                statusText.caption = TargetState[this.target.state];
+
+                switch (this.target.state) {
+                    case TargetState.Idle:
+                    case TargetState.BeingCaptured:
+                        statusText.caption = `time left: ${humanize(this.target.timeLeft)}`;
+                        break;
+                }
+                break;
+        }
+
         statusText.draw();
     }
 }
 
 export class Team {
 
+}
+
+
+
+function humanize(time: number): string {
+    return (time / 1000).toFixed(1);
 }

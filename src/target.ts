@@ -4,42 +4,60 @@ import { Rect } from './cfx/rect'
 import { Color, Known } from './cfx/color'
 import { Marker, MarkerType } from './cfx/marker'
 import { Vector3 } from './cfx/vector'
+import { projectToGame } from './position'
 
 export enum TargetState {
-    Awaiting,
     Idle,
     BeingCaptured,
+    Contesting,
     Captured
 }
 
 export class Target {
-    private position: Vector3;
-    private radius: number;
+    public state: TargetState = TargetState.Idle;
+    public position: Vector3;
+
+    public timeToCapture: number = 5000;
+    public timeLeft: number;
+
     private blip: number;
-
-    private state: TargetState = TargetState.Awaiting;
-    private timeLeft: number;
-
     private marker: Marker;
+    private positionFixed: boolean;
 
-    public constructor(
-        private timeLimit: number = 5000,
-        radius: number = 10
-    ) {
-        this.radius = radius * radius;
-        this.timeLeft = timeLimit;
+    private _radius: number;
+    private _radiusOrig: number;
+    private _zFixRadius = 150 * 150;
+    private _zThreshold: number;
+
+    public get radius(): number {
+        return this._radiusOrig;
     }
 
-    public isNear(pos: Vector3) {
-        return this.position.distanceSquared(pos) < this.radius;
+    public set radius(radius: number) {
+        this._radius = radius * radius;
+        this._radiusOrig = radius;
     }
 
-    public spawn(pos: Vector3) {
-        this.position = pos;
-        const radius = Math.sqrt(this.radius);
+    public constructor(radius: number = 10.1) {
+        this.radius = radius;
+        this._zThreshold = radius * 3;
+    }
+
+    /**
+     * @api
+     * @param pos 
+     */
+    public respawn() {
+        this.state = TargetState.Idle;
+        this.timeLeft = this.timeToCapture;
+        this.position = this.randomPos();
+
+        this.positionFixed = false;
+
+        this.blip && RemoveBlip(this.blip);
+
         const mult = 1.975;
-
-        const scale = radius * mult;
+        const scale = this._radiusOrig * mult;
 
         this.blip = AddBlipForCoord(
             this.position.x,
@@ -49,7 +67,7 @@ export class Target {
 
         this.marker = new Marker(
             this.position.add(new Vector3(0, 0, -9)),
-            this.radius,
+            this._radiusOrig,
             MarkerType.VerticalCylinder,
             Known.PaleRed,
             Vector3.Forward,
@@ -59,72 +77,151 @@ export class Target {
 
         this.marker.direction = Vector3.Forward;
 
-        SetBlipSprite(this.blip, 63);
+        SetBlipSprite(this.blip, 419);
         SetBlipScale(this.blip, 1.1);
-
-        setTimeout(() => this.state = TargetState.Idle, 1000);
     }
 
-    public delete() {
+    /**
+     * @api
+     */
+    public cleanUp() {
         RemoveBlip(this.blip);
     }
 
+    /**
+     * @api
+     * @param dt 
+     * @param time 
+     */
+    public update(dt: number) {
+        switch (this.state) {
+            case TargetState.Idle:
+                this.updateIdle(dt);
+                break;
+                
+            case TargetState.BeingCaptured:
+                this.updateBeingCaptured(dt);
+                break;
+        }
+
+        this.updateHud(dt);
+    }
+
+    private updateIdle(dt: number) {
+        this.checkPlayersInside();
+        
+        this.marker.color = Known.MarineBlue;
+    }
+
+    private updateBeingCaptured(dt: number) {
+        this.checkPlayersInside();
+        
+        this.timeLeft -= dt;
+
+        if (this.timeLeft <= 0) {
+            this.state = TargetState.Captured;
+            this.cleanUp();
+        }
+
+        this.marker.color = Known.WeirdPurple;
+    }
+    
     private checkPlayersInside() {
-        let i = 0;
+        let playerOnTarget = 0;
     
         for (const player of Game.getPlayers()) {
-            if (player.position.distanceSquared(this.position) < this.radius) {
-                i++;
+            const playerPos = player.position;
+            const distance2D = playerPos.distanceSquared2D(this.position);
+            const distanceZ = Math.abs(playerPos.z - this.position.z);
+
+            if (
+                distance2D < this._radius
+                && distanceZ < this._zThreshold
+            ) {
+                playerOnTarget++;
             }
         }
 
         // TODO: Contesting
-        if (i > 0) {
+        if (playerOnTarget > 0) {
             this.state = TargetState.BeingCaptured;
         } else {
             this.state = TargetState.Idle;
         }
     }
 
-    private timeLeftHuman(): string {
-        const minutes = (this.timeLeft / 1000 / 60) % 60 |0;
-        const seconds = (this.timeLeft / 1000) % 60 |0;
+    private updateHud(dt: number) {
+        const playerPos = Game.localPlayer.position;
+        const dist2D = playerPos.distanceSquared2D(this.position);
 
-        return `${minutes}:${seconds}`;
+        if (dist2D < this._zFixRadius) {
+            if (!this.positionFixed) {
+                this.fixZCoord(playerPos);
+            }
+
+            this.marker.draw();
+        }
     }
 
-    public update(dt: number, time: number) {
-        switch (this.state) {
-            case TargetState.Idle:
-                this.checkPlayersInside();
+    /**
+     * Fixes Z coord of a target
+     * This is due to the fact that
+     * there might be no Z coord loaded
+     * for given coord at all
+     * 
+     * @param playerPos 
+     */
+    private fixZCoord(playerPos: Vector3) {
+        const x = this.position.x;
+        const y = this.position.y;
+        const z = playerPos.z + 30;
+        const r = this._radiusOrig;
 
-                this.marker.color = Known.MarineBlue;
-                break;
-                
-            case TargetState.BeingCaptured:
-                this.checkPlayersInside();
-
-                this.timeLeft -= dt;
-
-                if (this.timeLeft <= 0) {
-                    this.state = TargetState.Captured;
-                }
-
-                this.marker.color = Known.WeirdPurple;
-                break;
-
-            case TargetState.Captured:
-                this.marker.color = Known.Green;
+        if (!GetGroundZFor_3dCoord(x, y, z, true)[0]) {
+            return;
         }
 
-        this.updateHud(dt, time);
+        const surroundingArea = [
+            this.tryFixZCoord(x, y, z),
+            this.tryFixZCoord(x - r, y - r, z),
+            this.tryFixZCoord(x - r, y + r, z),
+            this.tryFixZCoord(x + r, y - r, z),
+            this.tryFixZCoord(x + r, y + r, z)
+        ];
+
+        const newZ = Math.min(...surroundingArea);
+
+        this.positionFixed = true;
+        this.position.z = newZ;
+        this.marker.position.z = newZ;
+
+        SetBlipCoords(this.blip, x, y, z);
     }
 
-    public updateHud(dt: number, time: number) {
-        this.marker.draw();
+    private tryFixZCoord(x: number, y: number, z: number): number {
+        const [res, newZ] = GetGroundZFor_3dCoord(
+            x, y, z,
+            false
+        );
+
+        return res ? newZ : z;
     }
 
-    public toString(): string {
-        return `state: ${TargetState[this.state]}, timer: ${this.timeLeftHuman()}`;
+    private randomPos(): Vector3 {
+        let pos = this.generateNewPos();
+
+        while (this.inOcean(pos)) {
+            pos = this.generateNewPos();
+        }
+
+        return pos;
+    }
+
+    private generateNewPos(): Vector3 {
+        return projectToGame(Math.random(), Math.random(), 0);
+    }
+
+    private inOcean(pos: Vector3): boolean {
+        return GetNameOfZone(pos.x, pos.y, pos.z) === 'OCEANA';
     }
 }
