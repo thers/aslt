@@ -2,13 +2,15 @@ import { Target, TargetState } from './target'
 import { Text, Font, Alignment } from './cfx/text'
 import { Color, Known } from './cfx/color'
 import { Vector3 } from './cfx/vector'
+import { Player } from './cfx/player'
 import { Game } from './cfx/game'
 
 export enum RoundState {
     Idle,
     Starting,
     Intermission,
-    Running
+    Running,
+    Ended
 }
 
 const statusText = new Text('wtf', [0.5, 0.05], .5, Known.White, Font.ChaletLondon);
@@ -20,16 +22,17 @@ export class Round {
     public targetIndex: number = 1;
     public maxTargets: number = 2;
 
-    public teams: Set<Team> = new Set();
     public state: RoundState = RoundState.Idle;
+    public teamsScore = [0, 0];
 
-    public timeToStart: number = 20000;
-    public timeToNextTarget: number = 30000;
+    public timeToStart: number = 5000;
+    public timeToNextTarget: number = 5000;
 
     public timerToStart: number;
     public timerToNextTarget: number;
 
     public start() {
+        this.teamsScore = [0, 0];
         this.timerToStart = this.timeToStart;
         this.timerToNextTarget = this.timeToNextTarget;
 
@@ -39,6 +42,8 @@ export class Round {
         this.targetIndex = 1;
 
         this.state = RoundState.Starting;
+
+        Game.localPlayer.setFloatDecor('aslt_random', Math.random());
     }
 
     public stop() {
@@ -56,9 +61,7 @@ export class Round {
                 this.timerToStart -= dt;
 
                 if (this.timerToStart <= 0) {
-                    this.state = RoundState.Running;
-                    this.target.respawn();
-                    this.timerToStart = 0;
+                    this.transitionToRunning();
                 }
                 break;
 
@@ -67,7 +70,7 @@ export class Round {
                 break;
             
             case RoundState.Running:
-                this.updateRunning(dt, time);
+                this.updateRunning(dt);
                 break;
         }
 
@@ -79,16 +82,22 @@ export class Round {
 
         if (this.timerToNextTarget <= 0) {
             this.target.respawn();
-            this.state = RoundState.Running;
 
+            this.state = RoundState.Running;
             this.timerToNextTarget = this.timeToNextTarget;
         }
     }
 
-    private updateRunning(dt: number, time: number) {
+    private updateRunning(dt: number) {
         this.target.update(dt);
 
         if (this.target.state === TargetState.Captured) {
+            if (this.target.teamsProgress[0] > this.target.teamsProgress[1]) {
+                this.teamsScore[0]++;
+            } else {
+                this.teamsScore[1]++;
+            }
+
             this.targetIndex++;
 
             if (this.targetIndex <= this.maxTargets) {
@@ -97,6 +106,27 @@ export class Round {
                 this.stop();
             }
         }
+    }
+
+    private transitionToRunning() {
+        const players = [];
+
+        for (const player of Game.getPlayers()) {
+            players.push([
+                player,
+                player.getFloatDecor('aslt_random')
+            ]);
+        }
+
+        players.sort((a, b) => a[1] - b[1])
+            .forEach(([player], index) => (<Player>player).setIntDecor(
+                'aslt_team',
+                (index % 2 === 0) ? 0 : 1 // There could be more teams, so fu
+            ));
+
+        this.state = RoundState.Running;
+        this.target.respawn();
+        this.timerToStart = 0;
     }
 
     public updateUi() {
@@ -116,21 +146,16 @@ export class Round {
                 switch (this.target.state) {
                     case TargetState.Idle:
                     case TargetState.BeingCaptured:
-                        statusText.caption = `time left: ${humanize(this.target.timeLeft)}`;
+                        statusText.caption = `Time remaining on target #${this.targetIndex}: ${humanize(this.target.timeLeft)}`;
                         break;
                 }
                 break;
         }
 
+        statusText.caption += ', team: ' + Game.localPlayer.getIntDecor('aslt_team');
         statusText.draw();
     }
 }
-
-export class Team {
-
-}
-
-
 
 function humanize(time: number): string {
     return (time / 1000).toFixed(1);

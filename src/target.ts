@@ -5,6 +5,7 @@ import { Color, Known } from './cfx/color'
 import { Marker, MarkerType } from './cfx/marker'
 import { Vector3 } from './cfx/vector'
 import { projectToGame } from './position'
+import { nextFloat } from './proceduralRandom'
 
 export enum TargetState {
     Idle,
@@ -19,6 +20,8 @@ export class Target {
 
     public timeToCapture: number = 5000;
     public timeLeft: number;
+
+    public teamsProgress = [0, 0];
 
     private blip: number;
     private marker: Marker;
@@ -51,6 +54,7 @@ export class Target {
         this.state = TargetState.Idle;
         this.timeLeft = this.timeToCapture;
         this.position = this.randomPos();
+        this.teamsProgress = [0, 0];
 
         this.positionFixed = false;
 
@@ -108,13 +112,13 @@ export class Target {
     }
 
     private updateIdle(dt: number) {
-        this.checkPlayersInside();
+        this.checkPlayersInside(dt);
         
         this.marker.color = Known.MarineBlue;
     }
 
     private updateBeingCaptured(dt: number) {
-        this.checkPlayersInside();
+        this.checkPlayersInside(dt);
         
         this.timeLeft -= dt;
 
@@ -126,8 +130,9 @@ export class Target {
         this.marker.color = Known.WeirdPurple;
     }
     
-    private checkPlayersInside() {
-        let playerOnTarget = 0;
+    private checkPlayersInside(dt: number) {
+        let players = 0;
+        const playersByTeams = [0, 0]; // TEMP, could be more teams
     
         for (const player of Game.getPlayers()) {
             const playerPos = player.position;
@@ -138,13 +143,21 @@ export class Target {
                 distance2D < this._radius
                 && distanceZ < this._zThreshold
             ) {
-                playerOnTarget++;
+                players++;
+                playersByTeams[player.getIntDecor('aslt_team')]++;
             }
         }
 
-        // TODO: Contesting
-        if (playerOnTarget > 0) {
-            this.state = TargetState.BeingCaptured;
+        if (players > 0) {
+            if (Math.min(...playersByTeams) !== 0) {
+                this.state = TargetState.Contesting;
+            } else {
+                if (playersByTeams[0] > playersByTeams[1]) {
+                    this.teamsProgress[0] += dt;
+                }
+
+                this.state = TargetState.BeingCaptured;
+            }
         } else {
             this.state = TargetState.Idle;
         }
@@ -174,7 +187,7 @@ export class Target {
     private fixZCoord(playerPos: Vector3) {
         const x = this.position.x;
         const y = this.position.y;
-        const z = playerPos.z + 30;
+        const z = playerPos.z + 100;
         const r = this._radiusOrig;
 
         if (!GetGroundZFor_3dCoord(x, y, z, true)[0]) {
@@ -208,17 +221,17 @@ export class Target {
     }
 
     private randomPos(): Vector3 {
-        let pos = this.generateNewPos();
+        let pos;
 
-        while (this.inOcean(pos)) {
+        do {
             pos = this.generateNewPos();
-        }
+        } while (this.inOcean(pos));
 
         return pos;
     }
 
     private generateNewPos(): Vector3 {
-        return projectToGame(Math.random(), Math.random(), 0);
+        return projectToGame(nextFloat(), nextFloat(), 0);
     }
 
     private inOcean(pos: Vector3): boolean {

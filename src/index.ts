@@ -5,6 +5,7 @@ import { Vector3 } from './cfx/vector'
 import { Round } from './round'
 import { Text, Font } from './cfx/text'
 import { projectToGame } from './position'
+import { setSeed } from './proceduralRandom'
 
 enum DecorationType {
     Float = 1,
@@ -17,16 +18,16 @@ let round = new Round();
 
 Game.onMount(() => {
     // Setup decorators
-    DecorRegister('rnd', <number>DecorationType.Float);
+    DecorRegister('aslt_random', <number>DecorationType.Float);
+    DecorRegister('aslt_team', <number>DecorationType.Int);
 
-    Game.localPlayer.setFloatDecor('rnd', Math.random());
-
-    console.log('Peds rnd:', DecorGetFloat(PlayerPedId(), 'rnd'));
+    // Register event listeners
+    onNet('aslt:round:start', seed => {
+        setSeed(seed);
+        round.start();
+    });
 });
-
-Game.onUnmount(() => {
-    round.stop();
-});
+Game.onUnmount(() => round.stop());
 
 let lastTime = 0;
 
@@ -34,9 +35,20 @@ setTick(async () => {
     const time = new Date().getTime();
     const dt = time - lastTime;
 
-    if (Game.controls.isJustPressed(Control.PhoneUp)) {
-        round.start();
+    if (Game.controls.isJustPressed(Control.PhoneRight)) {
+        emitNet('aslt:round:start', Math.random() * 0xffffffff |0);
     }
+
+    // if (Game.controls.isJustPressed(Control.PhoneDown)) {
+    //     for (const player of Game.getPlayers()) {
+    //         console.debug(
+    //             'PLAYER',
+    //             player.name,
+    //             player.getIntDecor('aslt_team'),
+    //             player.getFloatDecor('aslt_random')
+    //         );
+    //     }
+    // }
 
     round.update(dt, time);
 
