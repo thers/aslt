@@ -29,14 +29,12 @@ export class Text {
         public scale: number = 1,
         public color: Color = Known.White,
         public font: Font = Font.ChaletComprimeCologne
-    ) {
-        this.scale += 0.000001;
-    }
+    ) { }
 
     public draw() {
         if (this.shadow) {
             SetTextDropshadow(
-                this.shadowDistance + 0.01,
+                this.shadowDistance,
                 this.shadowColor.r,
                 this.shadowColor.g,
                 this.shadowColor.b,
@@ -56,6 +54,6 @@ export class Text {
         SetTextEntry("STRING");
         AddTextComponentString(this.caption);
 
-        DrawText(this.position[0] + 0.0000001, this.position[1] + 0.0000001);
+        DrawText(this.position[0], this.position[1]);
     }
 }

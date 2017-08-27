@@ -26,9 +26,9 @@ export class Vector3 extends Array {
         super(3);
 
         if (args.length === 3) {
-            this[0] = args[0] + 0.0000001;
-            this[1] = args[1] + 0.0000001;
-            this[2] = args[2] + 0.0000001;
+            this[0] = args[0];
+            this[1] = args[1];
+            this[2] = args[2];
         }
     }
 

@@ -11,14 +11,14 @@ export class Rect {
 
     public draw() {
         DrawRect(
-            this.x + 0.0000001,
-            this.y + 0.0000001,
-            this.width + 0.0000001,
-            this.height + 0.0000001,
-            this.color.r + 0.0000001,
-            this.color.g + 0.0000001,
-            this.color.b + 0.0000001,
-            this.color.a + 0.0000001
+            this.x,
+            this.y,
+            this.width,
+            this.height,
+            this.color.r,
+            this.color.g,
+            this.color.b,
+            this.color.a
         )
     }
 }

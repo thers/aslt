@@ -20,7 +20,7 @@ export class Player {
     }
     
     public setFloatDecor(decor: string, value: number) {
-        DecorSetFloat(this.ped, decor, value + .0000001);
+        DecorSetFloat(this.ped, decor, value);
     }
     
     public setIntDecor(decor: string, value: number) {
