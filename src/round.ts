@@ -13,6 +13,14 @@ export enum RoundState {
     Ended
 }
 
+interface ServerRoundState {
+    started: boolean
+    seed: number
+    playersAtTarget: {
+        [key: number]: boolean
+    }
+}
+
 const statusText = new Text('wtf', [0.5, 0.05], .5, Known.White, Font.ChaletLondon);
 statusText.outline = true;
 statusText.alignment = Alignment.Center;
@@ -30,6 +38,12 @@ export class Round {
 
     public timerToStart: number;
     public timerToNextTarget: number;
+
+    public constructor() {
+        onNet('aslt:round:state', (state: ServerRoundState) => {
+            
+        });
+    }
 
     public start() {
         this.teamsScore = [0, 0];
