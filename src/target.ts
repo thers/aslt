@@ -6,22 +6,21 @@ import { Marker, MarkerType } from './cfx/marker'
 import { Vector3 } from './cfx/vector'
 import { projectToGame } from './position'
 import { nextFloat } from './proceduralRandom'
+import StateHolder from './state'
 
-export enum TargetState {
-    Idle,
-    BeingCaptured,
-    Contesting,
-    Captured
+function playerPosFromServerId(playerId: number): Vector3 {
+    const pos = GetEntityCoords(
+        GetPlayerPed(
+            GetPlayerFromServerId(playerId)
+        ),
+        true
+    );
+
+    return Vector3.from(pos);
 }
 
 export class Target {
-    public state: TargetState = TargetState.Idle;
     public position: Vector3;
-
-    public timeToCapture: number = 5000;
-    public timeLeft: number;
-
-    public teamsProgress = [0, 0];
 
     private blip: number;
     private marker: Marker;
@@ -31,6 +30,8 @@ export class Target {
     private _radiusOrig: number;
     private _zFixRadius = 150 * 150;
     private _zThreshold: number;
+
+    private localPlayerWasOnTarget: boolean = false;
 
     public get radius(): number {
         return this._radiusOrig;
@@ -51,11 +52,7 @@ export class Target {
      * @param pos 
      */
     public respawn() {
-        this.state = TargetState.Idle;
-        this.timeLeft = this.timeToCapture;
         this.position = this.randomPos();
-        this.teamsProgress = [0, 0];
-
         this.positionFixed = false;
 
         this.blip && RemoveBlip(this.blip);
@@ -98,68 +95,26 @@ export class Target {
      * @param time 
      */
     public update(dt: number) {
-        switch (this.state) {
-            case TargetState.Idle:
-                this.updateIdle(dt);
-                break;
-                
-            case TargetState.BeingCaptured:
-                this.updateBeingCaptured(dt);
-                break;
-        }
+        this.checkPlayersInside(dt);
 
         this.updateHud(dt);
     }
-
-    private updateIdle(dt: number) {
-        this.checkPlayersInside(dt);
-        
-        this.marker.color = Known.MarineBlue;
-    }
-
-    private updateBeingCaptured(dt: number) {
-        this.checkPlayersInside(dt);
-        
-        this.timeLeft -= dt;
-
-        if (this.timeLeft <= 0) {
-            this.state = TargetState.Captured;
-            this.cleanUp();
-        }
-
-        this.marker.color = Known.WeirdPurple;
-    }
     
     private checkPlayersInside(dt: number) {
-        let players = 0;
-        const playersByTeams = [0, 0]; // TEMP, could be more teams
-    
-        for (const player of Game.getPlayers()) {
-            const playerPos = player.position;
-            const distance2D = playerPos.distanceSquared2D(this.position);
-            const distanceZ = Math.abs(playerPos.z - this.position.z);
+        const playerPos = Game.localPlayer.position;
+        const distance2D = playerPos.distanceSquared2D(this.position);
+        const distanceZ = Math.abs(playerPos.z - this.position.z);
 
-            if (
-                distance2D < this._radius
-                && distanceZ < this._zThreshold
-            ) {
-                players++;
-                playersByTeams[player.getIntDecor('aslt_team')]++;
-            }
+        const nowOnTarget = distance2D < this._radius && distanceZ < this._zThreshold;
+
+        if (nowOnTarget && !this.localPlayerWasOnTarget) {
+            StateHolder.notifyPlayerInside();
+            this.localPlayerWasOnTarget = true;
         }
 
-        if (players > 0) {
-            if (Math.min(...playersByTeams) !== 0) {
-                this.state = TargetState.Contesting;
-            } else {
-                if (playersByTeams[0] > playersByTeams[1]) {
-                    this.teamsProgress[0] += dt;
-                }
-
-                this.state = TargetState.BeingCaptured;
-            }
-        } else {
-            this.state = TargetState.Idle;
+        if (!nowOnTarget && this.localPlayerWasOnTarget) {
+            StateHolder.notifyPlayerOutside();
+            this.localPlayerWasOnTarget = false;
         }
     }
 

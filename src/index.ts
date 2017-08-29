@@ -17,20 +17,7 @@ enum DecorationType {
 
 let round = new Round();
 
-Game.onMount(() => {
-    // Setup decorators
-    DecorRegister('aslt_random', <number>DecorationType.Float);
-    DecorRegister('aslt_team', <number>DecorationType.Int);
-
-    // Register event listeners
-    onNet('aslt:start', seed => {
-        console.log('round starting');
-
-        setSeed(seed);
-        round.start();
-    });
-});
-Game.onUnmount(() => round.stop());
+Game.onMount(() => {});
 
 let lastTime = 0;
 
@@ -39,11 +26,11 @@ setTick(async () => {
     const dt = time - lastTime;
 
     if (Game.controls.isJustPressed(Control.PhoneRight)) {
-        emitNet('aslt:round:start', Math.random() * 0xffffffff |0);
+        emitNet('aslt:start', Math.random() * 0xffffffff |0);
     }
 
     if (Game.controls.isJustPressed(Control.PhoneDown)) {
-        console.log(GetGameTimer());
+        emitNet('plr');
     }
 
     round.update(dt, time);
