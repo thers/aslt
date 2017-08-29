@@ -54,10 +54,9 @@ onNet('aslt:start', function(seed)
         timerOfTarget = timeForTarget,
         timerOfIntermission = timeForIntermission
     }
+    booking = {}
 
     emitSync(-1, transition.IdleToStarting)
-
-    Citizen.Trace('aslt:start')
 end)
 
 onNet('aslt:book', function(rnd)
