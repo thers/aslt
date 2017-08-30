@@ -3,7 +3,7 @@ import { Color, Known } from './cfx/color'
 import { Vector3 } from './cfx/vector'
 import { Player } from './cfx/player'
 import { Game } from './cfx/game'
-import { Target } from './target'
+import { Target, TargetLocalState } from './target'
 import { setSeed, advanceSeed } from './proceduralRandom'
 import StateHolder, {
      Transition,
@@ -19,8 +19,6 @@ export class Round {
 
     public constructor() {
         StateHolder.onSync(transition => {
-            console.debug('State sync', Transition[transition], StateHolder.state);
-
             switch (transition) {
                 case Transition.Initial:
                     this.initialize();
@@ -42,7 +40,7 @@ export class Round {
     }
 
     private initialize() {
-        console.info('Round initialized');
+        setSeed(StateHolder.state.seed);
 
         if (StateHolder.isRunning) {
             this.maintainTarget();
@@ -50,28 +48,20 @@ export class Round {
     }
 
     private fromIdleToStarting() {
-        console.info('Round is about to start');
-
         emitNet('aslt:book', Math.random());
 
         setSeed(StateHolder.state.seed);
     }
 
     private fromStartingToRunning() {
-        console.info('Round started');
-
         this.maintainTarget();
     }
 
     private fromIntermissionToRunning() {
-        console.info('Round next target spawned');
-
         this.maintainTarget();
     }
 
     private fromRunningToIdle() {
-        console.info('Round has ended');
-
         this.target.cleanUp();
     }
 
@@ -86,28 +76,27 @@ export class Round {
                 return;
 
             case RoundState.Starting:
-                StateHolder.state.timerOfStart -= dt;
-
-                if (StateHolder.state.timerOfStart < 0) {
-                    StateHolder.state.timerOfStart = 0;
-                }
+                StateHolder.timerOfStartingDecrementor = dt;
 
                 statusText.caption = `Time to start: ${humanize(StateHolder.state.timerOfStart)}`;
                 break;
 
             case RoundState.Intermission:
-                StateHolder.state.timerOfIntermission -= dt;
-
-                if (StateHolder.state.timerOfIntermission < 0) {
-                    StateHolder.state.timerOfIntermission = 0;
-                }
+                StateHolder.timerOfIntermissionDecrementor = dt;
 
                 statusText.caption = `Intermission: ${humanize(StateHolder.state.timerOfIntermission)}`;
                 break;
             
             case RoundState.Running:
                 this.target.update(dt);
-                statusText.caption = `Capture target: ${StateHolder.state.target}, time: ${humanize(StateHolder.state.timerOfTarget)}`;
+
+                if (this.target.state === TargetLocalState.Capturing) {
+                    StateHolder.timerOfTargetDecrementor = dt;
+                }
+
+                statusText.caption = `Target #${StateHolder.state.target}`;
+                statusText.caption += `,  time: ${humanize(StateHolder.state.timerOfTarget)}`;
+                statusText.caption += `, ` + TargetLocalState[this.target.state];
                 break;
         }
 

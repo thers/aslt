@@ -1,8 +1,8 @@
 local maxTargets = 2
 
-local timeForStart = 5000
-local timeForTarget = 5000
-local timeForIntermission = 5000
+local timeForStart = 10000
+local timeForTarget = 10000
+local timeForIntermission = 10000
 
 local transition = {
     Initial = 1337,
@@ -29,18 +29,29 @@ local round = {
 -- Map of players randoms so we can assign them to teams
 local booking = {}
 
+-- Map of players steam id's to their current ids
+local playersMigrationTable = {}
+
 function onNet(name, cb)
     RegisterServerEvent(name)
     AddEventHandler(name, cb)
 end
 
 function emitSync(to, transition)
-    TriggerClientEvent('aslt:sync', -1, round, transition)
+    TriggerClientEvent('aslt:sync', to, round, transition)
 end
 
 function endOfRound()
     return round.target >= maxTargets
 end
+
+function sourceSteamdId()
+    return GetPlayerIdentifier(source, 0)
+end
+
+onNet('plr', function()
+    Citizen.Trace('Player steamid: ' .. sourceSteamdId() .. ', id ' .. source .. '\n')
+end)
 
 onNet('aslt:start', function(seed)
     round = {
@@ -55,16 +66,38 @@ onNet('aslt:start', function(seed)
         timerOfIntermission = timeForIntermission
     }
     booking = {}
+    playersMigrationTable = {}
 
     emitSync(-1, transition.IdleToStarting)
 end)
 
 onNet('aslt:book', function(rnd)
     booking[source] = rnd
+    playersMigrationTable[sourceSteamdId()] = source
 end)
 
 -- Request for initial sync
 onNet('aslt:sync', function()
+    -- Lets see if player just reconnected so we can migrate it's data
+    if round.state ~= 'idle' then
+        local playerSteamId = sourceSteamdId()
+
+        if playersMigrationTable[playerSteamId] then
+            local oldPlayerId = playersMigrationTable[playerSteamId]
+            local newPlayerId = source
+
+            Citizen.Trace('Migrating player ' .. playerSteamId .. ', was ' .. oldPlayerId .. ', now ' .. newPlayerId .. '\n')
+
+            round.playersTeams[newPlayerId] = round.playersTeams[oldPlayerId]
+            round.playersTeams[oldPlayerId] = nil
+
+            round.playersAtTarget[oldPlayerId] = nil
+            round.playersAtTarget[newPlayerId] = false
+
+            playersMigrationTable[playerSteamId] = newPlayerId
+        end
+    end
+
     emitSync(source, transition.Initial)
 end)
 
@@ -80,7 +113,7 @@ onNet('aslt:off-target', function()
     TriggerClientEvent('aslt:off-target', -1, source)
 end)
 
-local syncThreshold = 500
+local syncThreshold = 1000
 
 local lastTime = 0
 local sinceLastSync = 9000

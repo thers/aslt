@@ -8,10 +8,10 @@ import { projectToGame } from './position'
 import { nextFloat } from './proceduralRandom'
 import StateHolder from './state'
 
-function playerPosFromServerId(playerId: number): Vector3 {
+function playerPosFromPlayerId(playerId: string): Vector3 {
     const pos = GetEntityCoords(
         GetPlayerPed(
-            GetPlayerFromServerId(playerId)
+            GetPlayerFromServerId(parseInt(playerId, 10))
         ),
         true
     );
@@ -19,7 +19,15 @@ function playerPosFromServerId(playerId: number): Vector3 {
     return Vector3.from(pos);
 }
 
+export enum TargetLocalState {
+    Idle,
+    Capturing,
+    Contested
+}
+
 export class Target {
+    public state: TargetLocalState = TargetLocalState.Idle;
+
     public position: Vector3;
 
     private blip: number;
@@ -52,6 +60,8 @@ export class Target {
      * @param pos 
      */
     public respawn() {
+        this.state = TargetLocalState.Idle;
+
         this.position = this.randomPos();
         this.positionFixed = false;
 
@@ -101,21 +111,85 @@ export class Target {
     }
     
     private checkPlayersInside(dt: number) {
-        const playerPos = Game.localPlayer.position;
-        const distance2D = playerPos.distanceSquared2D(this.position);
-        const distanceZ = Math.abs(playerPos.z - this.position.z);
+        let playersOnTarget = 0;
 
-        const nowOnTarget = distance2D < this._radius && distanceZ < this._zThreshold;
+        const localPlayerId = PlayerId();
+        const localPlayerOnTarget = this.isPosWithin(Game.localPlayer.position);
 
-        if (nowOnTarget && !this.localPlayerWasOnTarget) {
+        if (localPlayerOnTarget && !this.localPlayerWasOnTarget) {
             StateHolder.notifyPlayerInside();
             this.localPlayerWasOnTarget = true;
         }
 
-        if (!nowOnTarget && this.localPlayerWasOnTarget) {
+        if (!localPlayerOnTarget && this.localPlayerWasOnTarget) {
             StateHolder.notifyPlayerOutside();
             this.localPlayerWasOnTarget = false;
         }
+
+        const teamsMembersOnTarget = {};
+
+        for (const playerId of Object.keys(StateHolder.state.playersAtTarget)) {
+            let isOnTarget = StateHolder.state.playersAtTarget[playerId];
+            const playerTeam = StateHolder.getPlayerTeam(playerId);
+            
+            // In order to improve visible perf we can check locally
+            if (!isOnTarget) {
+                isOnTarget = this.isPosWithin(
+                    playerPosFromPlayerId(playerId)
+                );
+            }
+
+            // Same we can check it for local player
+            if (parseInt(playerId, 10) === localPlayerId) {
+                isOnTarget = localPlayerOnTarget;
+            }
+
+            if (isOnTarget) {
+                playersOnTarget++;
+
+                if (typeof teamsMembersOnTarget[playerTeam] === "undefined") {
+                    teamsMembersOnTarget[playerTeam] = 1;
+                } else {
+                    teamsMembersOnTarget[playerTeam] += 1;
+                }
+            }
+        }
+
+        let contested = true;
+        const meanTeamsMembersOnTarget = playersOnTarget / 2; // 2 teams in total
+
+        for (const teamId of Object.keys(teamsMembersOnTarget)) {
+            if (teamsMembersOnTarget[teamId] !== meanTeamsMembersOnTarget) {
+                contested = false;
+            }
+        }
+
+        switch (true) {
+            case playersOnTarget === 0:
+                this.state = TargetLocalState.Idle;
+                this.marker.color = Known.Green;
+                break;
+            
+            case contested:
+                this.state = TargetLocalState.Contested;
+                this.marker.color = Known.PaleRed;
+                break;
+
+            case playersOnTarget > 0:
+                this.state = TargetLocalState.Capturing;
+                this.marker.color = Known.Blue;
+                break;
+        }
+    }
+
+    private isPosWithin(pos: Vector3): boolean {
+        const distance2D = pos.distanceSquared2D(this.position);
+        const distanceZ = Math.abs(pos.z - this.position.z);
+
+        return (
+            distance2D < this._radius
+            && distanceZ < this._zThreshold
+        );
     }
 
     private updateHud(dt: number) {

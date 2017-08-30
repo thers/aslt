@@ -62,7 +62,35 @@ class StateHolder {
 
         // Further syncs
         onNet('aslt:sync', (state: GameState, transition: Transition) => {
-            this.state = state;
+            const newState = {
+                ...state
+            };
+
+            if (Array.isArray(state.playersAtTarget)) {
+                newState.playersAtTarget = {};
+
+                state.playersAtTarget.forEach((isOnTarget, playerServerId) => {
+                    newState.playersAtTarget[playerServerId] = isOnTarget;
+                });
+            }
+
+            if (Array.isArray(state.playersTeams)) {
+                newState.playersTeams = {};
+
+                state.playersTeams.forEach((teamId, playerServerId) => {
+                    newState.playersTeams[playerServerId] = teamId;
+                });
+            }
+
+            if (Array.isArray(state.score)) {
+                newState.score = {};
+
+                state.score.forEach((teamScore, teamId) => {
+                    newState.playersTeams[teamId] = teamScore;
+                });
+            }
+
+            this.state = newState;
             this.fireListeners(transition);
         });
         
@@ -87,6 +115,10 @@ class StateHolder {
         emitNet('aslt:off-target');
     }
 
+    public getPlayerTeam(playerServerId: string): number {
+        return this.state.playersTeams[playerServerId];
+    }
+
     public get localPlayerTeam(): number {
         return this.state.playersTeams[GetPlayerServerId(0)];
     }
@@ -105,6 +137,30 @@ class StateHolder {
 
     public get isIntermission(): boolean {
         return this.state.state === RoundState.Intermission;
+    }
+
+    public set timerOfStartingDecrementor(dt: number) {
+        this.state.timerOfStart -= dt;
+
+        if (this.state.timerOfStart < 0) {
+            this.state.timerOfStart = 0;
+        }
+    }
+
+    public set timerOfTargetDecrementor(dt: number) {
+        this.state.timerOfTarget -= dt;
+
+        if (this.state.timerOfTarget < 0) {
+            this.state.timerOfTarget = 0;
+        }
+    }
+
+    public set timerOfIntermissionDecrementor(dt: number) {
+        this.state.timerOfIntermission -= dt;
+
+        if (this.state.timerOfIntermission < 0) {
+            this.state.timerOfIntermission = 0;
+        }
     }
 
     private fireListeners(transition: Transition) {
