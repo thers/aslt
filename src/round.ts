@@ -1,4 +1,3 @@
-import { Text, Font, Alignment } from './cfx/text'
 import { Color, Known } from './cfx/color'
 import { Vector3 } from './cfx/vector'
 import { Player } from './cfx/player'
@@ -9,10 +8,7 @@ import StateHolder, {
      Transition,
      RoundState
 } from './state'
-
-const statusText = new Text('wtf', [0.5, 0.05], .5, Known.White, Font.ChaletLondon);
-statusText.outline = true;
-statusText.alignment = Alignment.Center;
+import * as ui from './ui'
 
 export class Round {
     public target: Target = new Target();
@@ -35,6 +31,14 @@ export class Round {
                 case Transition.IntermissionToRunning:
                     this.fromIntermissionToRunning();
                     break;
+
+                case Transition.RunningToIntermission:
+                    this.fromRunningToIntermission();
+                    break;
+
+                case Transition.RunningToIdle:
+                    this.fromRunningToIdle();
+                    break;
             }
         });
     }
@@ -42,27 +46,85 @@ export class Round {
     private initialize() {
         setSeed(StateHolder.state.seed);
 
-        if (StateHolder.isRunning) {
-            this.maintainTarget();
+        if (StateHolder.isStarting) {
+            this.fromIdleToStarting();
         }
+
+        if (StateHolder.isIntermission) {
+            this.fromRunningToIntermission();
+        }
+
+        if (StateHolder.isRunning) {
+            if (StateHolder.state.target === 1) {
+                this.fromStartingToRunning();
+            } else {
+                this.fromIntermissionToRunning();
+            }
+        }
+
+        console.log('INITED');
     }
 
+    /**
+     * IDLE -> STARTING
+     */
     private fromIdleToStarting() {
+        ui.hudReset();
+        ui.hudSetState('WARM UP');
+
         emitNet('aslt:book', Math.random());
 
         setSeed(StateHolder.state.seed);
     }
 
+    /**
+     * STARTING -> RUNNING
+     */
     private fromStartingToRunning() {
         this.maintainTarget();
+
+        ui.hudSetTargetsCount('1/2');
+        ui.hudSetTeam(StateHolder.localPlayerTeam);
+        this.updateScores();
     }
 
+    /**
+     * INTERMISSION -> RUNNING
+     */
     private fromIntermissionToRunning() {
         this.maintainTarget();
+
+        ui.hudSetTargetsCount('2/2');
+        ui.hudSetTeam(StateHolder.localPlayerTeam);
+        this.updateScores();
     }
 
+    /**
+     * RUNNING -> INTERMISSION
+     */
+    private fromRunningToIntermission() {
+        this.target.cleanUp();
+        this.updateScores();
+
+        ui.hudSetTargetProgress(1, TargetLocalState.Captured, 0);
+        ui.hudSetState('NEXT TARGET');
+    }
+
+    /**
+     * RUNNING -> IDLE
+     */
     private fromRunningToIdle() {
         this.target.cleanUp();
+        this.updateScores();
+        ui.hudSetState('GAME OVER');
+        ui.hudSetTargetProgress(1, TargetLocalState.Captured, 0);
+    }
+
+    private updateScores() {
+        ui.hudSetScore(
+            (StateHolder.state.score[0] || 0)|0,
+            (StateHolder.state.score[1] || 0)|0
+        );
     }
 
     private maintainTarget() {
@@ -77,14 +139,12 @@ export class Round {
 
             case RoundState.Starting:
                 StateHolder.timerOfStartingDecrementor = dt;
-
-                statusText.caption = `Time to start: ${humanize(StateHolder.state.timerOfStart)}`;
+                ui.hudSetCounter(StateHolder.state.timerOfStart);
                 break;
 
             case RoundState.Intermission:
                 StateHolder.timerOfIntermissionDecrementor = dt;
-
-                statusText.caption = `Intermission: ${humanize(StateHolder.state.timerOfIntermission)}`;
+                ui.hudSetCounter(StateHolder.state.timerOfIntermission);
                 break;
             
             case RoundState.Running:
@@ -94,13 +154,13 @@ export class Round {
                     StateHolder.timerOfTargetDecrementor = dt;
                 }
 
-                statusText.caption = `Target #${StateHolder.state.target}`;
-                statusText.caption += `,  time: ${humanize(StateHolder.state.timerOfTarget)}`;
-                statusText.caption += `, ` + TargetLocalState[this.target.state];
+                ui.hudSetTargetProgress(
+                    (StateHolder.state.timeForTarget - StateHolder.state.timerOfTarget) / StateHolder.state.timeForTarget,
+                    this.target.state,
+                    this.target.leadTeam
+                );
                 break;
         }
-
-        statusText.draw();
     }
 }
 

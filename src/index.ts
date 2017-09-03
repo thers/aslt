@@ -6,6 +6,7 @@ import { Player } from './cfx/player'
 import { projectToGame } from './position'
 import { setSeed } from './proceduralRandom'
 import { Round } from './round'
+import * as ui from './ui'
 import './state'
 
 enum DecorationType {
@@ -48,15 +49,15 @@ setTick(async () => {
         emitNet('plr');
     }
 
-    round.update(dt, time);
+    // try {
+        round.update(dt, time);
+    // } catch(e) {
+    //     console.error(e);
+    // }
+
+    ui.drawHud();
 
     lastTime = time;
-
-    const p = Game.localPlayer.position;
-    const [inwtr, wtrh] = HeightPosInWater(p.x, p.z);
-
-    ind.caption = `Is in water: ${inwtr}, Water: ${wtrh.toFixed(3)}, Player: ${p.z.toFixed(3)}`;
-    //ind.draw();
 });
 
 RegisterCommand('pos', () => {

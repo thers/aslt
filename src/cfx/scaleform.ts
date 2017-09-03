@@ -1,6 +1,7 @@
 import { Vector3 } from './vector'
 
 export class Scaleform {
+    private ready = false;
     private handle: number;
 
     public get hasLoaded(): boolean {
@@ -11,10 +12,26 @@ export class Scaleform {
         return this.handle !== 0;
     }
 
+    public get isReady(): boolean {
+        if (!this.ready) {
+            if (!this.hasLoaded) {
+                this.tryAcquireHandle();
+            } else {
+                this.ready = true;
+            }
+        }
+
+        return this.ready;
+    }
+
     public constructor(
-        public name: string
+        private name: string
     ) {
-        this.handle = RequestScaleformMovie(name);
+        this.tryAcquireHandle();
+    }
+
+    private tryAcquireHandle() {
+        this.handle = RequestScaleformMovie(this.name);
     }
 
     public delete() {
@@ -22,6 +39,10 @@ export class Scaleform {
     }
 
     public invoke(name: string, ...args: any[]) {
+        if (!this.isReady) {
+            return;
+        }
+
         PushScaleformMovieFunction(this.handle, name);
 
         for (const arg of args) {
@@ -42,6 +63,7 @@ export class Scaleform {
                     break;
 
                 default:
+                    console.error('U mad? arg type: ', typeof arg);
                     throw new Error('Invalid argument type to pass to GFx');
             }
         }

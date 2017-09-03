@@ -7,19 +7,11 @@ export const RoundState = {
     Running: 'running'
 }
 
-export interface TeamsScore {
-    [key: number]: number
-}
-
-export interface Score {
-    [key: number]: TeamsScore
-}
-
 export interface GameState {
     state: 'idle' | 'starting' | 'running' | 'intermission'
     seed: number
     target: number
-    score: Score
+    score: number[]
     playersTeams: {
         [key: number]: number
     }
@@ -29,6 +21,10 @@ export interface GameState {
     timerOfStart: number
     timerOfTarget: number
     timerOfIntermission: number
+
+    timeForStart: number
+    timeForTarget: number
+    timeForIntermission: number
 }
 
 export enum Transition {
@@ -46,12 +42,15 @@ class StateHolder {
         state: 'idle',
         seed: 0,
         target: 1,
-        score: {},
+        score: [],
         playersTeams: {},
         playersAtTarget: {},
+        timeForStart: 0,
         timerOfStart: 0,
+        timeForTarget: 0,
         timerOfTarget: 0,
-        timerOfIntermission: 0
+        timeForIntermission: 0,
+        timerOfIntermission: 0,
     };
 
     private listeners: Function[] = [];
@@ -79,14 +78,6 @@ class StateHolder {
 
                 state.playersTeams.forEach((teamId, playerServerId) => {
                     newState.playersTeams[playerServerId] = teamId;
-                });
-            }
-
-            if (Array.isArray(state.score)) {
-                newState.score = {};
-
-                state.score.forEach((teamScore, teamId) => {
-                    newState.playersTeams[teamId] = teamScore;
                 });
             }
 
@@ -120,7 +111,7 @@ class StateHolder {
     }
 
     public get localPlayerTeam(): number {
-        return this.state.playersTeams[GetPlayerServerId(0)];
+        return this.state.playersTeams[GetPlayerServerId(PlayerId())] || 0;
     }
 
     public get isIdle(): boolean {

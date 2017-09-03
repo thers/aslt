@@ -1,6 +1,6 @@
 local maxTargets = 2
 
-local timeForStart = 10000
+local timeForStart = 5000
 local timeForTarget = 10000
 local timeForIntermission = 10000
 
@@ -58,11 +58,14 @@ onNet('aslt:start', function(seed)
         seed = seed,
         state = 'starting',
         target = 1,
-        score = {},
+        score = {0, 0},
         playersTeams = {},
         playersAtTarget = {},
+        timeForStart = timeForStart,
         timerOfStart = timeForStart,
+        timeForTarget = timeForTarget,
         timerOfTarget = timeForTarget,
+        timeForIntermission = timeForIntermission,
         timerOfIntermission = timeForIntermission
     }
     booking = {}
@@ -202,14 +205,8 @@ Citizen.CreateThread(function()
                         currentTransition = transition.RunningToIntermission
                     end
 
-                    if not round.score[round.target] then
-                        round.score[round.target] = {
-                            [leadingTeam] = 0
-                        }
-                    end
-
-                    local leadingTeamScore = round.score[round.target][leadingTeam]
-                    round.score[round.target][leadingTeam] = leadingTeamScore + 1
+                    local leadingTeamScore = round.score[leadingTeam + 1]
+                    round.score[leadingTeam + 1] = leadingTeamScore + 1
                     round.timerOfTarget = timeForTarget
                 end
             end

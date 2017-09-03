@@ -40,17 +40,20 @@ function IsPosInWater(x: number, y: number): boolean {
 export enum TargetLocalState {
     Idle,
     Capturing,
-    Contested
+    Contested,
+    Captured
 }
 
 export class Target {
     public state: TargetLocalState = TargetLocalState.Idle;
+    public leadTeam: number = 0;
 
     public position: Vector3;
 
     private blip: number;
     private positionFixed: boolean;
 
+    private active = false;
     private _radius: number;
     private _radiusOrig: number;
     private _zFixRadius = 150 * 150;
@@ -67,7 +70,7 @@ export class Target {
         this._radiusOrig = radius;
     }
 
-    public constructor(radius: number = 30) {
+    public constructor(radius: number = 20) {
         this.radius = radius;
         this._zThreshold = radius * 3;
     }
@@ -77,6 +80,8 @@ export class Target {
      * @param pos 
      */
     public respawn() {
+        console.log('RESP');
+
         this.state = TargetLocalState.Idle;
 
         this.position = this.randomPos();
@@ -92,12 +97,15 @@ export class Target {
 
         SetBlipSprite(this.blip, 419);
         SetBlipScale(this.blip, 1.1);
+
+        this.active = true;
     }
 
     /**
      * @api
      */
     public cleanUp() {
+        this.active = false;
         RemoveBlip(this.blip);
     }
 
@@ -107,12 +115,15 @@ export class Target {
      * @param time 
      */
     public update(dt: number) {
-        this.checkPlayersInside(dt);
+        if (!this.active) {
+            return;
+        }
 
-        this.updateHud(dt);
+        this.processPlayers(dt);
+        this.maintainPosition(dt);
     }
     
-    private checkPlayersInside(dt: number) {
+    private processPlayers(dt: number) {
         let playersOnTarget = 0;
 
         const localPlayerId = PlayerId();
@@ -128,12 +139,13 @@ export class Target {
             this.localPlayerWasOnTarget = false;
         }
 
+        let leadTeamMemebersOnTarget = -Infinity;
         const teamsMembersOnTarget = {};
-
+        
         for (const playerId of Object.keys(StateHolder.state.playersAtTarget)) {
             let isOnTarget = StateHolder.state.playersAtTarget[playerId];
             const playerTeam = StateHolder.getPlayerTeam(playerId);
-            
+
             // In order to improve visible perf we can check locally
             if (!isOnTarget) {
                 isOnTarget = this.isPosWithin(
@@ -153,6 +165,11 @@ export class Target {
                     teamsMembersOnTarget[playerTeam] = 1;
                 } else {
                     teamsMembersOnTarget[playerTeam] += 1;
+                }
+
+                if (teamsMembersOnTarget[playerTeam] > leadTeamMemebersOnTarget) {
+                    this.leadTeam = playerTeam;
+                    leadTeamMemebersOnTarget = teamsMembersOnTarget[playerTeam];
                 }
             }
         }
@@ -191,7 +208,7 @@ export class Target {
         );
     }
 
-    private updateHud(dt: number) {
+    private maintainPosition(dt: number) {
         const playerPos = Game.localPlayer.position;
         const dist2D = playerPos.distanceSquared2D(this.position);
 
