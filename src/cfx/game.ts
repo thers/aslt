@@ -1,6 +1,75 @@
 import { Control } from './control'
 import { Player } from './player'
 
+export function delay(time: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, time));
+}
+
+export function screenFadeOut(): Promise<void> {
+    DoScreenFadeOut(1000);
+
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            if (IsScreenFadedOut()) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 0);
+    });
+}
+
+export function screenFadeIn(): Promise<void> {
+    DoScreenFadeIn(1000);
+
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            if (IsScreenFadedIn()) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 0);
+    });
+}
+
+export function loadModel(modelHash: number|string): Promise<void> {
+    RequestModel(modelHash);
+
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            if (HasModelLoaded(modelHash)) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 0);
+    });
+}
+
+export function loadScaleform(scaleform: string): Promise<number> {
+    let scaleformHandle = RequestScaleformMovie(scaleform);
+
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            if (HasScaleformMovieLoaded(scaleformHandle)) {
+                clearInterval(interval);
+                resolve(scaleformHandle);
+            } else {
+                scaleformHandle = RequestScaleformMovie(scaleform);
+            }
+        }, 0);
+    });
+}
+
+export function loadCollisionAround(entity: number): Promise<void> {
+    return new Promise(resolve => {
+        const interval = setInterval(() => {
+            if (HasCollisionLoadedAroundEntity(entity)) {
+                clearInterval(interval);
+                resolve();
+            }
+        }, 0);
+    });
+}
+
 export const Game = {
     get maxPlayers(): number {
         return 32;

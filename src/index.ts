@@ -1,4 +1,4 @@
-import { Game } from './cfx/game'
+import { Game, screenFadeIn, screenFadeOut, delay } from './cfx/game'
 import { Control } from './cfx/control'
 import { Vector3 } from './cfx/vector'
 import { Text, Font, Alignment } from './cfx/text'
@@ -8,6 +8,7 @@ import { setSeed } from './proceduralRandom'
 import { Round } from './round'
 import * as ui from './ui'
 import './state'
+import './spawner'
 
 enum DecorationType {
     Float = 1,
@@ -38,6 +39,12 @@ const ind = new Text('', [0.05, 0.05]);
 ind.alignment = Alignment.Left;
 
 setTick(async () => {
+    if (Game.controls.isJustPressed(Control.PhoneLeft)) {
+        await screenFadeOut();
+        await delay(1000);
+        await screenFadeIn();
+    }
+
     const time = new Date().getTime();
     const dt = time - lastTime;
 
@@ -49,12 +56,7 @@ setTick(async () => {
         emitNet('plr');
     }
 
-    // try {
-        round.update(dt, time);
-    // } catch(e) {
-    //     console.error(e);
-    // }
-
+    round.update(dt, time);
     ui.drawHud();
 
     lastTime = time;
