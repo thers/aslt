@@ -8,6 +8,12 @@ import { projectToGame } from './position'
 import { nextFloat } from './proceduralRandom'
 import StateHolder from './state'
 
+const noTargetZones = new Set([
+    'OCEANA',
+    'MTCHIL',
+    'LACT'
+]);
+
 function playerPosFromPlayerId(playerId: string): Vector3 {
     const pos = GetEntityCoords(
         GetPlayerPed(
@@ -17,6 +23,18 @@ function playerPosFromPlayerId(playerId: string): Vector3 {
     );
 
     return Vector3.from(pos);
+}
+
+function IsPosInWater(x: number, y: number): boolean {
+    return Citizen.invokeNative<[boolean, number]>(
+        "0x8EE6B53CE13A9794",
+        x + 0.00000001,
+        y + 0.00000001,
+        0.00000001,
+        Citizen.pointerValueFloat(),
+        Citizen.returnResultAnyway(),
+        Citizen.resultAsInteger()
+    )[0];
 }
 
 export enum TargetLocalState {
@@ -31,7 +49,6 @@ export class Target {
     public position: Vector3;
 
     private blip: number;
-    private marker: Marker;
     private positionFixed: boolean;
 
     private _radius: number;
@@ -50,7 +67,7 @@ export class Target {
         this._radiusOrig = radius;
     }
 
-    public constructor(radius: number = 10.1) {
+    public constructor(radius: number = 30) {
         this.radius = radius;
         this._zThreshold = radius * 3;
     }
@@ -67,26 +84,11 @@ export class Target {
 
         this.blip && RemoveBlip(this.blip);
 
-        const mult = 1.975;
-        const scale = this._radiusOrig * mult;
-
         this.blip = AddBlipForCoord(
             this.position.x,
             this.position.y,
             this.position.z
         );
-
-        this.marker = new Marker(
-            this.position.add(new Vector3(0, 0, -9)),
-            this._radiusOrig,
-            MarkerType.VerticalCylinder,
-            Known.PaleRed,
-            Vector3.Forward,
-            Vector3.Zero,
-            new Vector3(scale, scale, 10)
-        );
-
-        this.marker.direction = Vector3.Forward;
 
         SetBlipSprite(this.blip, 419);
         SetBlipScale(this.blip, 1.1);
@@ -167,17 +169,14 @@ export class Target {
         switch (true) {
             case playersOnTarget === 0:
                 this.state = TargetLocalState.Idle;
-                this.marker.color = Known.Green;
                 break;
             
             case contested:
                 this.state = TargetLocalState.Contested;
-                this.marker.color = Known.PaleRed;
                 break;
 
             case playersOnTarget > 0:
                 this.state = TargetLocalState.Capturing;
-                this.marker.color = Known.Blue;
                 break;
         }
     }
@@ -196,12 +195,11 @@ export class Target {
         const playerPos = Game.localPlayer.position;
         const dist2D = playerPos.distanceSquared2D(this.position);
 
-        if (dist2D < this._zFixRadius) {
-            if (!this.positionFixed) {
-                this.fixZCoord(playerPos);
-            }
-
-            this.marker.draw();
+        if (
+            dist2D < this._zFixRadius
+            && !this.positionFixed
+        ) {
+            this.fixZCoord(playerPos);
         }
     }
 
@@ -218,24 +216,30 @@ export class Target {
         const y = this.position.y;
         const z = playerPos.z + 100;
         const r = this._radiusOrig;
+        const inWater = IsPosInWater(x, y);
+
+        let newZ;
 
         if (!GetGroundZFor_3dCoord(x, y, z, true)[0]) {
             return;
         }
 
-        const surroundingArea = [
-            this.tryFixZCoord(x, y, z),
-            this.tryFixZCoord(x - r, y - r, z),
-            this.tryFixZCoord(x - r, y + r, z),
-            this.tryFixZCoord(x + r, y - r, z),
-            this.tryFixZCoord(x + r, y + r, z)
-        ];
+        const centerPos = this.tryFixZCoord(x, y, z);
 
-        const newZ = Math.min(...surroundingArea);
+        if (inWater && centerPos < 0) {
+            newZ = 0;
+        } else {
+            newZ = Math.min(
+                centerPos,
+                this.tryFixZCoord(x - r, y - r, z),
+                this.tryFixZCoord(x - r, y + r, z),
+                this.tryFixZCoord(x + r, y - r, z),
+                this.tryFixZCoord(x + r, y + r, z)
+            );
+        }
 
         this.positionFixed = true;
         this.position.z = newZ;
-        this.marker.position.z = newZ;
 
         SetBlipCoords(this.blip, x, y, z);
     }
@@ -254,7 +258,7 @@ export class Target {
 
         do {
             pos = this.generateNewPos();
-        } while (this.inOcean(pos));
+        } while (this.isInNoTargetZone(pos));
 
         return pos;
     }
@@ -263,7 +267,7 @@ export class Target {
         return projectToGame(nextFloat(), nextFloat(), 0);
     }
 
-    private inOcean(pos: Vector3): boolean {
-        return GetNameOfZone(pos.x, pos.y, pos.z) === 'OCEANA';
+    private isInNoTargetZone(pos: Vector3): boolean {
+        return noTargetZones.has(GetNameOfZone(pos.x, pos.y, pos.z));
     }
 }

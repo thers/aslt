@@ -1,7 +1,7 @@
 import { Game } from './cfx/game'
 import { Control } from './cfx/control'
 import { Vector3 } from './cfx/vector'
-import { Text, Font } from './cfx/text'
+import { Text, Font, Alignment } from './cfx/text'
 import { Player } from './cfx/player'
 import { projectToGame } from './position'
 import { setSeed } from './proceduralRandom'
@@ -21,6 +21,21 @@ Game.onMount(() => {});
 
 let lastTime = 0;
 
+function HeightPosInWater(x: number, y: number): [boolean, number] {
+    return Citizen.invokeNative<[boolean, number]>(
+        '0xF6829842C06AE524',//"0x8EE6B53CE13A9794",
+        x + 0.00000001,
+        y + 0.00000001,
+        0.00000001,
+        Citizen.pointerValueFloat(),
+        Citizen.returnResultAnyway(),
+        Citizen.resultAsInteger()
+    );
+}
+
+const ind = new Text('', [0.05, 0.05]);
+ind.alignment = Alignment.Left;
+
 setTick(async () => {
     const time = new Date().getTime();
     const dt = time - lastTime;
@@ -36,6 +51,12 @@ setTick(async () => {
     round.update(dt, time);
 
     lastTime = time;
+
+    const p = Game.localPlayer.position;
+    const [inwtr, wtrh] = HeightPosInWater(p.x, p.z);
+
+    ind.caption = `Is in water: ${inwtr}, Water: ${wtrh.toFixed(3)}, Player: ${p.z.toFixed(3)}`;
+    //ind.draw();
 });
 
 RegisterCommand('pos', () => {
